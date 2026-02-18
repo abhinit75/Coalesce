@@ -49,8 +49,41 @@
 
    Open [http://localhost:3000](http://localhost:3000).
 
+5. **Tunneling (local development with Clerk)**
+
+   For Clerk to work locally (redirects, webhooks), it must reach your app at a public URL. Use a tunnel so `localhost` is exposed:
+
+   - **[ngrok](https://ngrok.com):** `ngrok http 3000` → use the `https://…` URL.
+   - **[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps):** `cloudflared tunnel --url http://localhost:3000` → use the generated URL.
+
+   Then:
+
+   1. Set `NEXT_PUBLIC_APP_URL` in `.env` to your tunnel URL (e.g. `https://abc123.ngrok.io`).
+   2. In [Clerk Dashboard](https://dashboard.clerk.com) → **Paths**: add the tunnel URL under "Allowed redirect URLs" / "Allowed origins" so sign-in and sign-up redirects work.
+   3. Restart `yarn dev` and use the tunnel URL in the browser when testing auth.
+
+6. **Clerk webhooks**
+
+   The app syncs new Clerk users to your database via a webhook. For that to work, Clerk must be able to POST to your app:
+
+   - **Production:** Use your real domain (e.g. `https://yourapp.com`).
+   - **Local:** Use your tunnel URL from step 5 (e.g. `https://abc123.ngrok.io`).
+
+   **Configure in Clerk:**
+
+   1. Go to [Clerk Dashboard](https://dashboard.clerk.com) → **Webhooks** → **Add endpoint**.
+   2. **Endpoint URL:** `https://<your-domain-or-tunnel>/api/user/create-user`
+   3. **Subscribe to:** `user.created` (and any other events your app handles).
+   4. After saving, open the webhook and copy the **Signing secret**.
+   5. In `.env`, set:
+      ```bash
+      USER_CREATED_WEBHOOK_SECRET="whsec_..."
+      ```
+   6. Restart the app. New sign-ups in Clerk will trigger the webhook and create/update users in your DB.
+
 ## Troubleshooting
 
 - **Prisma errors:** Ensure `DATABASE_URL` is set and the database is reachable. Run `yarn db:generate` if you change the schema.
-- **Clerk redirects:** Set `NEXT_PUBLIC_APP_URL` to your dev URL and add it in Clerk Dashboard → Paths.
+- **Clerk redirects:** Set `NEXT_PUBLIC_APP_URL` to your dev URL (or tunnel URL) and add it in Clerk Dashboard → Paths.
 - **Seed fails for Clerk:** Seed runs without `CLERK_SECRET_KEY` but won’t create Clerk org memberships; DB seed still applies.
+- **Webhooks not firing locally:** Ensure the tunnel is running, the endpoint URL in Clerk uses the tunnel URL, and `USER_CREATED_WEBHOOK_SECRET` matches the webhook’s Signing secret in the Clerk Dashboard.
